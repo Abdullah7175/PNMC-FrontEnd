@@ -1,26 +1,60 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --pnmc-blue: #002c57;
+  --pnmc-green: #1b8a5a;
+  --pnmc-blue-light: #003d7a;
+  --background: #f4f6f9;
+  --foreground: #1a1a2e;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --muted: #64748b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-pnmc-blue: var(--pnmc-blue);
+  --color-pnmc-green: var(--pnmc-green);
+  --color-pnmc-blue-light: var(--pnmc-blue-light);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-work-sans);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-work-sans), system-ui, sans-serif;
 }
+
+.btn-primary {
+  @apply bg-pnmc-green text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition;
+}
+
+.btn-secondary {
+  @apply bg-pnmc-blue text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition;
+}
+
+.btn-outline {
+  @apply border border-border px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition;
+}
+
+.card {
+  @apply bg-card rounded-xl border border-border shadow-sm p-6;
+}
+
+.input {
+  @apply w-full border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pnmc-green/40;
+}
+
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-submitted { @apply bg-blue-100 text-blue-800; }
+.badge-approved { @apply bg-green-100 text-green-800; }
+.badge-rejected { @apply bg-red-100 text-red-800; }
+.badge-changes { @apply bg-amber-100 text-amber-800; }
+.badge-draft { @apply bg-gray-100 text-gray-800; }
