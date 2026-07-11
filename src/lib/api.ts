@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
@@ -6,6 +6,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1
 export const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  timeout: 30_000,
 });
 
 api.interceptors.request.use((config) => {
@@ -16,12 +17,62 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let refreshing: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = Cookies.get('refreshToken');
+  if (!refreshToken) return null;
+  try {
+    const { data } = await axios.post(`${API_URL}/auth/refresh`, {
+      refreshToken,
+    });
+    const secure =
+      typeof window !== 'undefined' && window.location.protocol === 'https:';
+    Cookies.set('accessToken', data.accessToken, {
+      expires: 1,
+      sameSite: 'strict',
+      secure,
+      path: '/',
+    });
+    if (data.refreshToken) {
+      Cookies.set('refreshToken', data.refreshToken, {
+        expires: 7,
+        sameSite: 'strict',
+        secure,
+        path: '/',
+      });
+    }
+    return data.accessToken as string;
+  } catch {
+    return null;
+  }
+}
+
 api.interceptors.response.use(
   (res) => res,
-  async (error) => {
-    if (error.response?.status === 401 && typeof window !== 'undefined') {
-      Cookies.remove('accessToken');
-      Cookies.remove('refreshToken');
+  async (error: AxiosError) => {
+    const original = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+    };
+    if (
+      error.response?.status === 401 &&
+      typeof window !== 'undefined' &&
+      original &&
+      !original._retry &&
+      !original.url?.includes('/auth/login') &&
+      !original.url?.includes('/auth/refresh')
+    ) {
+      original._retry = true;
+      refreshing ??= refreshAccessToken().finally(() => {
+        refreshing = null;
+      });
+      const token = await refreshing;
+      if (token) {
+        original.headers.Authorization = `Bearer ${token}`;
+        return api(original);
+      }
+      Cookies.remove('accessToken', { path: '/' });
+      Cookies.remove('refreshToken', { path: '/' });
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -55,6 +106,8 @@ export const authApi = {
     }),
   me: () => api.get<User>('/auth/me'),
   logout: () => api.post('/auth/logout'),
+  refresh: (refreshToken: string) =>
+    api.post<LoginResponse>('/auth/refresh', { refreshToken }),
 };
 
 export const supervisorApi = {
@@ -93,6 +146,9 @@ export function hasPermission(user: User | null, permission: string): boolean {
   return user.permissions.includes(permission);
 }
 
-export function hasAnyPermission(user: User | null, permissions: string[]): boolean {
+export function hasAnyPermission(
+  user: User | null,
+  permissions: string[],
+): boolean {
   return permissions.some((p) => hasPermission(user, p));
 }

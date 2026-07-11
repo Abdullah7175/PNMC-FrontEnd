@@ -9,15 +9,26 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void> | void;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function cookieOpts(days: number) {
+  const secure =
+    typeof window !== 'undefined' && window.location.protocol === 'https:';
+  return {
+    expires: days,
+    sameSite: 'strict' as const,
+    secure,
+    path: '/',
+  };
+}
+
 function clearSession() {
-  Cookies.remove('accessToken');
-  Cookies.remove('refreshToken');
+  Cookies.remove('accessToken', { path: '/' });
+  Cookies.remove('refreshToken', { path: '/' });
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -57,8 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Mobile field users cannot sign in here. Please use the PNMC Field Inspector mobile app.',
         );
       }
-      Cookies.set('accessToken', data.accessToken, { expires: 1 });
-      Cookies.set('refreshToken', data.refreshToken, { expires: 7 });
+      Cookies.set('accessToken', data.accessToken, cookieOpts(1));
+      Cookies.set('refreshToken', data.refreshToken, cookieOpts(7));
       setUser(data.user);
     } catch (err) {
       clearSession();
@@ -80,7 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // still clear local session
+    }
     clearSession();
     setUser(null);
     window.location.href = '/login';

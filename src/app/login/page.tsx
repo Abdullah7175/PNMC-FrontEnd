@@ -5,20 +5,55 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 
+/** Letters, digits, and only @ / . — e.g. admin@admin.com */
+const EMAIL_REGEX =
+  /^[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)*@[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)+$/;
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    password?: string;
+  }>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
+  const validate = () => {
+    const next: { email?: string; password?: string } = {};
+    const trimmed = email.trim().toLowerCase();
+
+    if (!trimmed) {
+      next.email = 'Email is required';
+    } else if (trimmed.length > 255) {
+      next.email = 'Email is too long';
+    } else if (!EMAIL_REGEX.test(trimmed)) {
+      next.email =
+        'Enter a valid email using only letters, numbers, @ and . (e.g. admin@admin.com)';
+    }
+
+    if (!password) {
+      next.password = 'Password is required';
+    } else if (password.length < 6) {
+      next.password = 'Password must be at least 6 characters';
+    } else if (password.length > 128) {
+      next.password = 'Password is too long';
+    }
+
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!validate()) return;
+
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim().toLowerCase(), password);
       router.push('/dashboard');
     } catch (err) {
       setError(
@@ -41,9 +76,7 @@ export default function LoginPage() {
             className="mx-auto mb-8"
             priority
           />
-          <h1 className="text-3xl font-bold text-pnmc-blue mb-3">
-            PNMC
-          </h1>
+          <h1 className="text-3xl font-bold text-pnmc-blue mb-3">PNMC</h1>
           <p className="text-muted text-base leading-relaxed">
             Pakistan Nursing & Midwifery Council — review and manage field
             inspection reports submitted by inspectors.
@@ -69,34 +102,71 @@ export default function LoginPage() {
             <p className="text-muted mt-1">Enter your credentials to continue</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {error && (
-              <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div
+                className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm"
+                role="alert"
+              >
                 {error}
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
+              <label htmlFor="email" className="block text-sm font-medium mb-1">
+                Email
+              </label>
               <input
+                id="email"
+                name="email"
                 type="email"
-                className="input"
+                autoComplete="username"
+                inputMode="email"
+                className={`input ${fieldErrors.email ? 'border-red-400' : ''}`}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (fieldErrors.email)
+                    setFieldErrors((f) => ({ ...f, email: undefined }));
+                }}
                 placeholder="admin@pnmc.gov.pk"
+                maxLength={255}
                 required
+                aria-invalid={!!fieldErrors.email}
               />
+              {fieldErrors.email && (
+                <p className="text-red-600 text-xs mt-1">{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Password</label>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium mb-1"
+              >
+                Password
+              </label>
               <input
+                id="password"
+                name="password"
                 type="password"
-                className="input"
+                autoComplete="current-password"
+                className={`input ${fieldErrors.password ? 'border-red-400' : ''}`}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (fieldErrors.password)
+                    setFieldErrors((f) => ({ ...f, password: undefined }));
+                }}
+                maxLength={128}
                 required
+                aria-invalid={!!fieldErrors.password}
               />
+              {fieldErrors.password && (
+                <p className="text-red-600 text-xs mt-1">
+                  {fieldErrors.password}
+                </p>
+              )}
             </div>
 
             <button
@@ -107,8 +177,6 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
-
-
         </div>
       </div>
     </div>
