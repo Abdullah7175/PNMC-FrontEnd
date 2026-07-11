@@ -129,7 +129,7 @@ export default function LoginPage() {
                   if (fieldErrors.email)
                     setFieldErrors((f) => ({ ...f, email: undefined }));
                 }}
-                placeholder="admin@pnmc.gov.pk"
+                placeholder="Enter your email"
                 maxLength={255}
                 required
                 aria-invalid={!!fieldErrors.email}
@@ -158,7 +158,7 @@ export default function LoginPage() {
                   if (fieldErrors.password)
                     setFieldErrors((f) => ({ ...f, password: undefined }));
                 }}
-                maxLength={128}
+                placeholder="Enter your password"                maxLength={128}
                 required
                 aria-invalid={!!fieldErrors.password}
               />
