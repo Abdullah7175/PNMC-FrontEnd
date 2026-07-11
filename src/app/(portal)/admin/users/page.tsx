@@ -8,9 +8,14 @@ interface UserRow {
   id: string;
   email: string;
   fullName: string;
-  employeeId: string;
-  province: string;
-  district: string;
+  employeeId: string | null;
+  phone: string | null;
+  nic: string | null;
+  designation: string | null;
+  address: string | null;
+  officeDetails: string | null;
+  province: string | null;
+  district: string | null;
   isActive: boolean;
   isMobileUser: boolean;
   roles: { id: string; name: string; code: string }[];
@@ -27,6 +32,11 @@ const emptyForm = {
   password: '',
   fullName: '',
   employeeId: '',
+  phone: '',
+  nic: '',
+  designation: '',
+  address: '',
+  officeDetails: '',
   province: '',
   district: '',
   isMobileUser: false,
@@ -62,6 +72,11 @@ export default function UsersPage() {
       password: '',
       fullName: user.fullName,
       employeeId: user.employeeId ?? '',
+      phone: user.phone ?? '',
+      nic: user.nic ?? '',
+      designation: user.designation ?? '',
+      address: user.address ?? '',
+      officeDetails: user.officeDetails ?? '',
       province: user.province ?? '',
       district: user.district ?? '',
       isMobileUser: user.isMobileUser,
@@ -69,6 +84,18 @@ export default function UsersPage() {
     });
     setShowForm(true);
   };
+
+  const profilePayload = () => ({
+    fullName: form.fullName,
+    employeeId: form.employeeId || null,
+    phone: form.phone || null,
+    nic: form.nic || null,
+    designation: form.designation || null,
+    address: form.address || null,
+    officeDetails: form.officeDetails || null,
+    province: form.province || null,
+    district: form.district || null,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,10 +107,7 @@ export default function UsersPage() {
 
     if (editingId) {
       const payload: Record<string, unknown> = {
-        fullName: form.fullName,
-        employeeId: form.employeeId || null,
-        province: form.province || null,
-        district: form.district || null,
+        ...profilePayload(),
         isMobileUser: form.isMobileUser,
         roleIds,
       };
@@ -91,7 +115,10 @@ export default function UsersPage() {
       await adminApi.updateUser(editingId, payload);
     } else {
       await adminApi.createUser({
-        ...form,
+        email: form.email,
+        password: form.password,
+        ...profilePayload(),
+        isMobileUser: form.isMobileUser,
         roleIds,
       });
     }
@@ -170,9 +197,29 @@ export default function UsersPage() {
             />
             <input
               className="input"
-              placeholder="Employee ID"
+              placeholder="Phone"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
+            <input
+              className="input"
+              placeholder="NIC / CNIC (e.g. 42101-1234567-1)"
+              value={form.nic}
+              onChange={(e) => setForm({ ...form, nic: e.target.value })}
+            />
+            <input
+              className="input"
+              placeholder="Work / Employee ID"
               value={form.employeeId}
               onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
+            />
+            <input
+              className="input"
+              placeholder="Position / Designation"
+              value={form.designation}
+              onChange={(e) =>
+                setForm({ ...form, designation: e.target.value })
+              }
             />
             <input
               className="input"
@@ -185,6 +232,20 @@ export default function UsersPage() {
               placeholder="District"
               value={form.district}
               onChange={(e) => setForm({ ...form, district: e.target.value })}
+            />
+            <input
+              className="input md:col-span-2"
+              placeholder="Address"
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+            />
+            <input
+              className="input md:col-span-2"
+              placeholder="Office details (name, location, etc.)"
+              value={form.officeDetails}
+              onChange={(e) =>
+                setForm({ ...form, officeDetails: e.target.value })
+              }
             />
 
             <label className="md:col-span-2 flex items-center gap-3 p-3 rounded-lg border border-border bg-[#f8fafc]">
@@ -270,10 +331,10 @@ export default function UsersPage() {
             <thead className="bg-gray-50 border-b border-border">
               <tr>
                 <th className="text-left px-6 py-3">Name</th>
+                <th className="text-left px-6 py-3">Phone / NIC</th>
+                <th className="text-left px-6 py-3">Designation</th>
                 <th className="text-left px-6 py-3">Email</th>
-                <th className="text-left px-6 py-3">Roles</th>
                 <th className="text-left px-6 py-3">Type</th>
-                <th className="text-left px-6 py-3">Region</th>
                 <th className="text-left px-6 py-3">Status</th>
                 <th className="px-6 py-3"></th>
               </tr>
@@ -281,20 +342,29 @@ export default function UsersPage() {
             <tbody>
               {users.map((u) => (
                 <tr key={u.id} className="border-b border-border">
-                  <td className="px-6 py-4 font-medium">{u.fullName}</td>
-                  <td className="px-6 py-4">{u.email}</td>
                   <td className="px-6 py-4">
-                    {u.roles?.map((r) => r.name).join(', ')}
+                    <p className="font-medium">{u.fullName}</p>
+                    <p className="text-xs text-muted">
+                      {u.employeeId || '—'}
+                      {u.roles?.length
+                        ? ` · ${u.roles.map((r) => r.name).join(', ')}`
+                        : ''}
+                    </p>
                   </td>
+                  <td className="px-6 py-4 text-muted">
+                    <p>{u.phone || '—'}</p>
+                    <p className="text-xs">{u.nic || ''}</p>
+                  </td>
+                  <td className="px-6 py-4 text-muted">
+                    {u.designation || '—'}
+                  </td>
+                  <td className="px-6 py-4">{u.email}</td>
                   <td className="px-6 py-4">
                     {u.isMobileUser ? (
                       <span className="badge badge-submitted">Mobile User</span>
                     ) : (
                       <span className="badge badge-draft">Portal</span>
                     )}
-                  </td>
-                  <td className="px-6 py-4 text-muted">
-                    {[u.district, u.province].filter(Boolean).join(', ') || '—'}
                   </td>
                   <td className="px-6 py-4">
                     <span

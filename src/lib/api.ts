@@ -83,9 +83,14 @@ export interface User {
   id: string;
   email: string;
   fullName: string;
-  employeeId?: string;
-  province?: string;
-  district?: string;
+  employeeId?: string | null;
+  phone?: string | null;
+  nic?: string | null;
+  designation?: string | null;
+  address?: string | null;
+  officeDetails?: string | null;
+  province?: string | null;
+  district?: string | null;
   isMobileUser?: boolean;
   roles: { id: string; code: string; name: string }[];
   permissions: string[];
