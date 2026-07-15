@@ -35,12 +35,31 @@ function statusBadge(status: string) {
 function InspectionsContent() {
   const searchParams = useSearchParams();
   const [inspections, setInspections] = useState<Inspection[]>([]);
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') ?? '');
+  const [statusFilter, setStatusFilter] = useState(
+    searchParams.get('status') ?? '',
+  );
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const params: Record<string, string> = {};
     if (statusFilter) params.status = statusFilter;
-    supervisorApi.inspections(params).then(({ data }) => setInspections(data));
+    setLoading(true);
+    setError('');
+    supervisorApi
+      .inspections(params)
+      .then(({ data }) => {
+        setInspections(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        const message =
+          err?.response?.data?.message ||
+          err?.message ||
+          'Failed to load inspections';
+        setError(Array.isArray(message) ? message.join(', ') : String(message));
+        setInspections([]);
+      })
+      .finally(() => setLoading(false));
   }, [statusFilter]);
 
   return (
@@ -65,6 +84,12 @@ function InspectionsContent() {
         </select>
       </div>
 
+      {error && (
+        <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">
+          {error}
+        </div>
+      )}
+
       <div className="card overflow-hidden p-0">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-border">
@@ -79,7 +104,13 @@ function InspectionsContent() {
             </tr>
           </thead>
           <tbody>
-            {inspections.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-muted">
+                  Loading…
+                </td>
+              </tr>
+            ) : inspections.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-6 py-12 text-center text-muted">
                   No inspections found
@@ -87,8 +118,13 @@ function InspectionsContent() {
               </tr>
             ) : (
               inspections.map((insp) => (
-                <tr key={insp.id} className="border-b border-border hover:bg-gray-50">
-                  <td className="px-6 py-4 font-mono text-xs">{insp.inspectionCode}</td>
+                <tr
+                  key={insp.id}
+                  className="border-b border-border hover:bg-gray-50"
+                >
+                  <td className="px-6 py-4 font-mono text-xs">
+                    {insp.inspectionCode}
+                  </td>
                   <td className="px-6 py-4 font-medium">{insp.instituteName}</td>
                   <td className="px-6 py-4 text-muted">
                     {[insp.district, insp.province].filter(Boolean).join(', ')}
@@ -99,10 +135,16 @@ function InspectionsContent() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-green-600">{insp.progress.okCount} OK</span>
+                    <span className="text-green-600">
+                      {insp.progress?.okCount ?? 0} OK
+                    </span>
                     {' / '}
-                    <span className="text-red-600">{insp.progress.rejectCount} N/A</span>
-                    <span className="text-muted ml-2">({insp.progress.percent}%)</span>
+                    <span className="text-red-600">
+                      {insp.progress?.rejectCount ?? 0} N/A
+                    </span>
+                    <span className="text-muted ml-2">
+                      ({insp.progress?.percent ?? 0}%)
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-muted">
                     {insp.submittedAt
