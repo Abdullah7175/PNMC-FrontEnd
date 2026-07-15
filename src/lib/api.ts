@@ -91,6 +91,8 @@ export interface User {
   officeDetails?: string | null;
   province?: string | null;
   district?: string | null;
+  provinceId?: string | null;
+  districtId?: string | null;
   isMobileUser?: boolean;
   roles: { id: string; code: string; name: string }[];
   permissions: string[];

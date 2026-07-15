@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PermissionGate from '@/components/PermissionGate';
-import { adminApi } from '@/lib/api';
+import { adminApi, api } from '@/lib/api';
 
 interface UserRow {
   id: string;
@@ -16,6 +16,8 @@ interface UserRow {
   officeDetails: string | null;
   province: string | null;
   district: string | null;
+  provinceId: string | null;
+  districtId: string | null;
   isActive: boolean;
   isMobileUser: boolean;
   roles: { id: string; name: string; code: string }[];
@@ -25,6 +27,18 @@ interface Role {
   id: string;
   name: string;
   code: string;
+}
+
+interface DistrictOpt {
+  id: string;
+  name: string;
+  provinceId: string;
+}
+
+interface ProvinceOpt {
+  id: string;
+  name: string;
+  districts: DistrictOpt[];
 }
 
 const emptyForm = {
@@ -37,8 +51,8 @@ const emptyForm = {
   designation: '',
   address: '',
   officeDetails: '',
-  province: '',
-  district: '',
+  provinceId: '',
+  districtId: '',
   isMobileUser: false,
   roleIds: [] as string[],
 };
@@ -46,13 +60,20 @@ const emptyForm = {
 export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [provinces, setProvinces] = useState<ProvinceOpt[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
 
+  const districts = useMemo(() => {
+    const p = provinces.find((x) => x.id === form.provinceId);
+    return p?.districts ?? [];
+  }, [provinces, form.provinceId]);
+
   const load = () => {
     adminApi.users().then(({ data }) => setUsers(data));
     adminApi.roles().then(({ data }) => setRoles(data));
+    api.get('/admin/provinces').then(({ data }) => setProvinces(data));
   };
 
   useEffect(() => {
@@ -77,8 +98,8 @@ export default function UsersPage() {
       designation: user.designation ?? '',
       address: user.address ?? '',
       officeDetails: user.officeDetails ?? '',
-      province: user.province ?? '',
-      district: user.district ?? '',
+      provinceId: user.provinceId ?? '',
+      districtId: user.districtId ?? '',
       isMobileUser: user.isMobileUser,
       roleIds: user.roles?.map((r) => r.id) ?? [],
     });
@@ -93,8 +114,8 @@ export default function UsersPage() {
     designation: form.designation || null,
     address: form.address || null,
     officeDetails: form.officeDetails || null,
-    province: form.province || null,
-    district: form.district || null,
+    provinceId: form.provinceId || null,
+    districtId: form.districtId || null,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -137,6 +158,12 @@ export default function UsersPage() {
     load();
   };
 
+  const needsProvince =
+    form.isMobileUser ||
+    form.roleIds.some(
+      (id) => roles.find((r) => r.id === id)?.code === 'supervisor',
+    );
+
   return (
     <PermissionGate permission="users.view">
       <div>
@@ -144,7 +171,8 @@ export default function UsersPage() {
           <div>
             <h1 className="text-2xl font-bold text-pnmc-blue">Users</h1>
             <p className="text-muted">
-              Manage portal users, supervisors, and mobile field inspectors
+              Supervisors are assigned a province; mobile inspectors a district
+              under that province
             </p>
           </div>
           <button
@@ -221,18 +249,43 @@ export default function UsersPage() {
                 setForm({ ...form, designation: e.target.value })
               }
             />
-            <input
+            <select
               className="input"
-              placeholder="Province"
-              value={form.province}
-              onChange={(e) => setForm({ ...form, province: e.target.value })}
-            />
-            <input
+              value={form.provinceId}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  provinceId: e.target.value,
+                  districtId: '',
+                })
+              }
+              required={needsProvince}
+            >
+              <option value="">Province (assignment)…</option>
+              {provinces.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <select
               className="input"
-              placeholder="District"
-              value={form.district}
-              onChange={(e) => setForm({ ...form, district: e.target.value })}
-            />
+              value={form.districtId}
+              onChange={(e) => setForm({ ...form, districtId: e.target.value })}
+              disabled={!form.provinceId}
+              required={form.isMobileUser}
+            >
+              <option value="">
+                {form.isMobileUser
+                  ? 'District (required for mobile)…'
+                  : 'District (optional for supervisors)…'}
+              </option>
+              {districts.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
             <input
               className="input md:col-span-2"
               placeholder="Address"
@@ -272,8 +325,7 @@ export default function UsersPage() {
                   Is Mobile User
                 </span>
                 <span className="block text-xs text-muted">
-                  Field inspector for the Flutter app — can create and submit
-                  inspections via mobile APIs
+                  Field inspector — assign a district under their province
                 </span>
               </span>
             </label>
@@ -300,97 +352,74 @@ export default function UsersPage() {
                       }}
                     />
                     {r.name}
-                    {r.code === 'field_inspector' && (
-                      <span className="badge badge-submitted text-[10px]">
-                        mobile
-                      </span>
-                    )}
                   </label>
                 ))}
               </div>
             </div>
+
             <div className="md:col-span-2 flex gap-3">
               <button type="submit" className="btn-primary">
-                {editingId ? 'Update User' : 'Create User'}
+                {editingId ? 'Save Changes' : 'Create User'}
               </button>
-              {editingId && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="btn-outline"
-                >
-                  Cancel
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={resetForm}
+              >
+                Cancel
+              </button>
             </div>
           </form>
         )}
 
-        <div className="card overflow-hidden p-0">
+        <div className="card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-border">
-              <tr>
-                <th className="text-left px-6 py-3">Name</th>
-                <th className="text-left px-6 py-3">Phone / NIC</th>
-                <th className="text-left px-6 py-3">Designation</th>
-                <th className="text-left px-6 py-3">Email</th>
-                <th className="text-left px-6 py-3">Type</th>
-                <th className="text-left px-6 py-3">Status</th>
-                <th className="px-6 py-3"></th>
+            <thead>
+              <tr className="text-left border-b border-border">
+                <th className="py-3 pr-4">Name</th>
+                <th className="py-3 pr-4">Email</th>
+                <th className="py-3 pr-4">Assignment</th>
+                <th className="py-3 pr-4">Roles</th>
+                <th className="py-3 pr-4">Mobile</th>
+                <th className="py-3 pr-4">Status</th>
+                <th className="py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-border">
-                  <td className="px-6 py-4">
-                    <p className="font-medium">{u.fullName}</p>
-                    <p className="text-xs text-muted">
-                      {u.employeeId || '—'}
-                      {u.roles?.length
-                        ? ` · ${u.roles.map((r) => r.name).join(', ')}`
-                        : ''}
-                    </p>
+                <tr key={u.id} className="border-b border-border/60">
+                  <td className="py-3 pr-4 font-medium">{u.fullName}</td>
+                  <td className="py-3 pr-4">{u.email}</td>
+                  <td className="py-3 pr-4 text-muted">
+                    {[u.district, u.province].filter(Boolean).join(', ') || '—'}
                   </td>
-                  <td className="px-6 py-4 text-muted">
-                    <p>{u.phone || '—'}</p>
-                    <p className="text-xs">{u.nic || ''}</p>
+                  <td className="py-3 pr-4">
+                    {u.roles?.map((r) => r.name).join(', ')}
                   </td>
-                  <td className="px-6 py-4 text-muted">
-                    {u.designation || '—'}
+                  <td className="py-3 pr-4">
+                    {u.isMobileUser ? 'Yes' : 'No'}
                   </td>
-                  <td className="px-6 py-4">{u.email}</td>
-                  <td className="px-6 py-4">
-                    {u.isMobileUser ? (
-                      <span className="badge badge-submitted">Mobile User</span>
-                    ) : (
-                      <span className="badge badge-draft">Portal</span>
-                    )}
+                  <td className="py-3 pr-4">
+                    {u.isActive ? 'Active' : 'Inactive'}
                   </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`badge ${u.isActive ? 'badge-approved' : 'badge-rejected'}`}
-                    >
-                      {u.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
+                  <td className="py-3 flex flex-wrap gap-2">
                     <button
+                      className="text-pnmc-blue text-xs underline"
                       onClick={() => startEdit(u)}
-                      className="text-sm text-pnmc-green hover:underline"
                     >
                       Edit
                     </button>
                     <button
+                      className="text-xs underline"
                       onClick={() => toggleActive(u)}
-                      className="text-sm text-pnmc-blue hover:underline"
                     >
-                      {u.isActive ? 'Deactivate' : 'Activate'}
+                      {u.isActive ? 'Disable' : 'Enable'}
                     </button>
                     <button
+                      className="text-red-600 text-xs underline"
                       onClick={() => handleDelete(u)}
-                      className="text-sm text-red-600 hover:underline"
                     >
-                      Delete
+                      Deactivate
                     </button>
                   </td>
                 </tr>
